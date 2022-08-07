@@ -1,14 +1,20 @@
 //!  # kd - Korean Drama
 //!
 //! kd helps easily document Korean Dramas making watching Korean Dramas more fun!
+use std::{env, process};
+
 use clap::{Parser, Subcommand};
-use kd::{actor::Actor, korean::utils, show::Show, character::Character};
+use kd::{actor::Actor, character::Character, korean::utils, show::Show};
+use num_format::{Buffer, Locale, ToFormattedString, WriteFormatted};
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
 struct Cli {
     #[clap(subcommand)]
     command: Option<Commands>,
+
+    #[clap(global = true, short, long, action = clap::ArgAction::Count)]
+    verbose: u8,
 }
 
 #[derive(Subcommand)]
@@ -25,6 +31,9 @@ enum Commands {
         #[clap(subcommand)]
         command: Option<AddCommands>,
     },
+
+    /// View config info
+    Config,
 }
 
 #[derive(Subcommand)]
@@ -64,17 +73,50 @@ enum AddCommands {
         /// Gender of character
         #[clap(short, long)]
         gender: String,
-    }
+    },
 }
+
+// fn format_float(input: f64) -> String {
+//     let input: String = format!("")
+//     input
+// }
 
 fn main() {
     let cli = Cli::parse();
+    // Set up config directory
+    let config_dir = dirs::config_dir().unwrap();
+    let config_dir = config_dir.join("kd");
+    if !config_dir.exists() {
+        if let Err(_) = std::fs::create_dir_all(&config_dir) {
+            eprintln!(
+                "Unabled to create config directory: {:?}",
+                config_dir.as_os_str()
+            );
+            process::exit(1);
+        } else {
+            println!("Created config directory: {:?}", config_dir.as_os_str());
+        }
+    }
+    // Optionally load env variables from config .env file
+    let env_file = config_dir.join(".env");
+    if let Ok(_) = dotenv::from_path(env_file.as_path()) {
+        if cli.verbose > 0 {
+            println!("Loaded from .env file");
+        }
+    }
 
     match cli.command {
+        Some(Commands::Config) => {
+            println!("Config directory: {:?}", config_dir.as_os_str());
+        }
         Some(Commands::Convert { won }) => {
             println!("Converting {} won to usd...", won);
-            let usd = utils::krw_to_usd(won);
-            println!("{} won = {} usd", won, usd);
+            match utils::krw_to_usd(won) {
+                Ok(usd) => {
+                    println!("{} won = {} usd", won, usd);
+                }
+                Err(e) => println!("{e}"),
+            };
         }
         Some(Commands::Add { command }) => match command {
             Some(AddCommands::Show { name, release_year }) => {
