@@ -1,9 +1,12 @@
 use std::fmt::Display;
 
+use serde::{Serialize, Deserialize};
+
 
 /// Represents a character in a show
+#[derive(Serialize, Deserialize)]
 pub struct Character {
-    name: String,
+    pub name: String,
     role: String,
     gender: String
 }

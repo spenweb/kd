@@ -28,7 +28,10 @@ pub fn get_krw_to_usd_forex_rate() -> Result<f64, Box<dyn Error>> {
             },
             None => return Err("Nope".into()),
         },
-        None => return Err("Response not found".into()),
+        None => {
+            println!("response: {body}");
+            return Err("Response not found".into())
+    },
     };
 
     // Return as float

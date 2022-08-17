@@ -5,5 +5,5 @@ pub mod korean;
 pub mod music;
 pub mod actor;
 pub mod character;
-
-
+pub mod config;
+pub mod show_collection;

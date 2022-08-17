@@ -1,11 +1,13 @@
 //!  # kd - Korean Drama
 //!
 //! kd helps easily document Korean Dramas making watching Korean Dramas more fun!
-use std::process;
-
 use clap::{Parser, Subcommand};
 use inquire::{Confirm, CustomType, CustomUserError, Text};
-use kd::{actor::Actor, character::Character, korean::utils, show::Show};
+use kd::{
+    actor::Actor, character::Character, config, korean::utils, show::Show,
+    show_collection::ShowCollection,
+};
+use std::process;
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -63,16 +65,16 @@ enum AddCommands {
     /// Add character
     Character {
         /// Name of character
-        #[clap(short, long)]
-        name: String,
+        #[clap(short, long, required(false))]
+        name: Option<String>,
 
         /// Role of character
-        #[clap(short, long)]
-        role: String,
+        #[clap(short, long, required(false))]
+        role: Option<String>,
 
         /// Gender of character
-        #[clap(short, long)]
-        gender: String,
+        #[clap(short, long, required(false))]
+        gender: Option<String>,
     },
 }
 
@@ -83,22 +85,15 @@ enum AddCommands {
 
 fn main() {
     let cli = Cli::parse();
-    // Set up config directory
-    let config_dir = dirs::config_dir().unwrap();
-    let config_dir = config_dir.join("kd");
-    if !config_dir.exists() {
-        if let Err(_) = std::fs::create_dir_all(&config_dir) {
-            eprintln!(
-                "Unabled to create config directory: {:?}",
-                config_dir.as_os_str()
-            );
-            process::exit(1);
-        } else {
-            println!("Created config directory: {:?}", config_dir.as_os_str());
-        }
+
+    let config = config::Config::new();
+    if let Err(e) = config.init() {
+        eprintln!("{e}");
+        process::exit(1);
     }
+
     // Optionally load env variables from config .env file
-    let env_file = config_dir.join(".env");
+    let env_file = config.get_config_dir().join(".env");
     if let Ok(_) = dotenv::from_path(env_file.as_path()) {
         if cli.verbose > 0 {
             println!("Loaded from .env file");
@@ -107,7 +102,11 @@ fn main() {
 
     match cli.command {
         Some(Commands::Config) => {
-            println!("Config directory: {:?}", config_dir.as_os_str());
+            println!(
+                "Config directory: {:?}",
+                config.get_config_dir().as_os_str()
+            );
+            println!("Data directory: {:?}", config.get_data_dir().as_os_str());
         }
         Some(Commands::Convert { won }) => {
             println!("Converting {} won to usd...", won);
@@ -127,8 +126,7 @@ fn main() {
                 println!("Added new actor: {actor}");
             }
             Some(AddCommands::Character { name, role, gender }) => {
-                let character = Character::new(name, role, gender);
-                println!("Added new character: {character}");
+                add_character_controller(name, role, gender);
             }
             None => {}
         },
@@ -136,14 +134,71 @@ fn main() {
     }
 }
 
+fn add_character_controller(name: Option<String>, role: Option<String>, gender: Option<String>) {
+    let mut show_collection = match ShowCollection::load() {
+        Ok(show_collection) => show_collection,
+        Err(e) => return eprintln!("Unable to load shows: {e}"),
+    };
+    let show = Text::new("Show's title:")
+        .with_suggester(&|input: &str| show_suggestor(&show_collection, input))
+        .prompt()
+        .unwrap();
+    let name = match name {
+        Some(name) => name,
+        None => inquire::Text::new("Character name:").prompt().unwrap(),
+    };
+    let role = match role {
+        Some(role) => role,
+        None => {
+            let options = vec!["protagonist", "antagonist", "comic-relief"];
+            inquire::Select::new("Role:", options)
+                .prompt()
+                .unwrap()
+                .to_string()
+        }
+    };
+    let gender = match gender {
+        Some(gender) => gender,
+        None => {
+            let options = vec!["female", "male", "other"];
+            inquire::Select::new("Gender:", options)
+                .prompt()
+                .unwrap()
+                .to_string()
+        }
+    };
+
+    let character = Character::new(name, role, gender);
+
+    if let Ok(true) = Confirm::new(format!("Does this info look correct: {character}").as_str())
+        .with_default(true)
+        .with_help_message("Will save if correct")
+        .prompt()
+    {
+        let character = match show_collection.add_character(show.as_str(), character) {
+            Ok(character) => character,
+            Err(e) => return eprintln!("{e}"),
+        };
+        let character_string = character.to_string();
+        match show_collection.save() {
+            Ok(_) => println!("Added new character: {character_string}"),
+            Err(e) => eprintln!("{e}"),
+        }
+    }
+}
+
 fn add_show_controller(name: Option<String>, release_year: Option<i16>) {
     let validated_name: String;
     let validated_release_year: i16;
+    let mut show_collection = match ShowCollection::load() {
+        Ok(show_collection) => show_collection,
+        Err(e) => return eprintln!("Unable to load shows: {e}"),
+    };
     if let Some(name) = name {
         validated_name = name;
     } else {
         validated_name = Text::new("Show's title:")
-            .with_suggester(&show_suggestor)
+            .with_suggester(&|input: &str| show_suggestor(&show_collection, input))
             .prompt()
             .unwrap();
     }
@@ -161,18 +216,21 @@ fn add_show_controller(name: Option<String>, release_year: Option<i16>) {
         .with_help_message("Will save if correct")
         .prompt()
     {
-        println!("Added new show: {show}");
+        show_collection.add(show);
+
+        match show_collection.save() {
+            Ok(_) => println!("Saved show"),
+            Err(e) => return eprintln!("Unable to save show collection: {e}"),
+        }
     }
 }
 
-fn show_suggestor(input: &str) -> Result<Vec<String>, CustomUserError> {
+fn show_suggestor(
+    show_collection: &ShowCollection,
+    input: &str,
+) -> Result<Vec<String>, CustomUserError> {
+    let shows: Vec<&str> = show_collection.get_show_names();
     let input = input.to_lowercase();
-    let shows = vec![
-        "Our Blues",
-        "It's Okay Not To Be Okay",
-        "Crash Landing On You",
-        "Extraordinary Attorney Woo Young Woo",
-    ];
 
     Ok(shows
         .iter()
