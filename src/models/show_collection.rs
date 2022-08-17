@@ -1,8 +1,10 @@
-use std::{collections::HashMap, error::Error, path::PathBuf, borrow::BorrowMut};
+use std::{collections::HashMap, error::Error, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{config::Config, show::Show, character::Character};
+use crate::config::Config;
+
+use super::{character::Character, show::Show};
 
 pub const SHOWS_FILE_NAME: &'static str = "shows.json";
 
@@ -46,7 +48,11 @@ impl ShowCollection {
             .collect()
     }
 
-    pub fn add_character(&mut self, show_name: &str, character: Character) -> Result<&Character, &str> {
+    pub fn add_character(
+        &mut self,
+        show_name: &str,
+        character: Character,
+    ) -> Result<&Character, &str> {
         // Find show with name
         for (_key, show) in self.shows.iter_mut() {
             if show.get_name() == show_name {

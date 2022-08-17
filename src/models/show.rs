@@ -3,7 +3,10 @@ use std::fmt::Display;
 use serde::{Serialize, Deserialize};
 use uuid::Uuid;
 
-use crate::character::Character;
+use crate::DisplayMoreInfo;
+
+use super::character::Character;
+
 
 /// Represents a TV series or movie
 #[derive(Serialize, Deserialize)]
@@ -47,5 +50,17 @@ impl Show {
 impl Display for Show {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} - {}", self.name, self.release_year)
+    }
+}
+
+impl DisplayMoreInfo for Show {
+    fn more_info(&self) -> String {
+        let mut message = String::from(format!("{self}\n"));
+        message.push_str(&format!("Characters:\n"));
+        for character in self.characters.iter() {
+            message.push_str(&format!("\t- {character}\n"));
+        }
+
+        message
     }
 }

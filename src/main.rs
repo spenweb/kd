@@ -2,12 +2,10 @@
 //!
 //! kd helps easily document Korean Dramas making watching Korean Dramas more fun!
 use clap::{Parser, Subcommand};
-use inquire::{Confirm, CustomType, CustomUserError, Text};
-use kd::{
-    actor::Actor, character::Character, config, korean::utils, show::Show,
-    show_collection::ShowCollection,
-};
+use kd::{models::actor::Actor, config, korean::utils};
 use std::process;
+
+pub mod controllers;
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -21,6 +19,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// View config info
+    Config,
+
     /// Convert currencies
     Convert {
         /// Korean Won to convert to USD
@@ -28,20 +29,29 @@ enum Commands {
         won: f64,
     },
 
-    /// Add entities to database (e.g., shows, actors, etc.)
-    Add {
+    /// Interact with shows
+    Show {
         #[clap(subcommand)]
-        command: Option<AddCommands>,
+        command: Option<ShowCommands>,
     },
 
-    /// View config info
-    Config,
+    /// Interact with characters
+    Character {
+        #[clap(subcommand)]
+        command: Option<CharacterCommands>,
+    },
+
+    /// Interact with actors
+    Actor {
+        #[clap(subcommand)]
+        command: Option<ActorCommands>,
+    },
 }
 
 #[derive(Subcommand)]
-enum AddCommands {
+enum ShowCommands {
     /// Add show
-    Show {
+    Add {
         /// Name of show
         #[clap(short, long, required(false))]
         name: Option<String>,
@@ -51,19 +61,18 @@ enum AddCommands {
         release_year: Option<i16>,
     },
 
-    /// Add actor
-    Actor {
-        /// Name of actor
-        #[clap(short, long)]
-        name: String,
+    /// Show info on show
+    Info {
+        /// Name of show
+        #[clap(short, long, required(false))]
+        name: Option<String>,
+    }
+}
 
-        /// Birth year
-        #[clap(short, long)]
-        birth_year: i64,
-    },
-
+#[derive(Subcommand)]
+enum CharacterCommands {
     /// Add character
-    Character {
+    Add {
         /// Name of character
         #[clap(short, long, required(false))]
         name: Option<String>,
@@ -78,6 +87,19 @@ enum AddCommands {
     },
 }
 
+#[derive(Subcommand)]
+enum ActorCommands {
+    /// Add actor
+    Add {
+        /// Name of actor
+        #[clap(short, long)]
+        name: String,
+
+        /// Birth year
+        #[clap(short, long)]
+        birth_year: i64,
+    },
+}
 // fn format_float(input: f64) -> String {
 //     let input: String = format!("")
 //     input
@@ -117,125 +139,26 @@ fn main() {
                 Err(e) => println!("{e}"),
             };
         }
-        Some(Commands::Add { command }) => match command {
-            Some(AddCommands::Show { name, release_year }) => {
-                add_show_controller(name, release_year)
+        Some(Commands::Show { command }) => match command {
+            Some(ShowCommands::Add { name, release_year }) => {
+                controllers::show::add_show_controller(name, release_year)
             }
-            Some(AddCommands::Actor { name, birth_year }) => {
+            Some(ShowCommands::Info {name}) => controllers::show::display_more_info(name),
+            None => {}
+        },
+        Some(Commands::Character { command }) => match command {
+            Some(CharacterCommands::Add { name, role, gender }) => {
+                controllers::character::add_character_controller(name, role, gender);
+            }
+            None => {}
+        },
+        Some(Commands::Actor { command }) => match command {
+            Some(ActorCommands::Add { name, birth_year }) => {
                 let actor = Actor::new(name, birth_year);
                 println!("Added new actor: {actor}");
-            }
-            Some(AddCommands::Character { name, role, gender }) => {
-                add_character_controller(name, role, gender);
             }
             None => {}
         },
         None => {}
     }
-}
-
-fn add_character_controller(name: Option<String>, role: Option<String>, gender: Option<String>) {
-    let mut show_collection = match ShowCollection::load() {
-        Ok(show_collection) => show_collection,
-        Err(e) => return eprintln!("Unable to load shows: {e}"),
-    };
-    let show = Text::new("Show's title:")
-        .with_suggester(&|input: &str| show_suggestor(&show_collection, input))
-        .prompt()
-        .unwrap();
-    let name = match name {
-        Some(name) => name,
-        None => inquire::Text::new("Character name:").prompt().unwrap(),
-    };
-    let role = match role {
-        Some(role) => role,
-        None => {
-            let options = vec!["protagonist", "antagonist", "comic-relief"];
-            inquire::Select::new("Role:", options)
-                .prompt()
-                .unwrap()
-                .to_string()
-        }
-    };
-    let gender = match gender {
-        Some(gender) => gender,
-        None => {
-            let options = vec!["female", "male", "other"];
-            inquire::Select::new("Gender:", options)
-                .prompt()
-                .unwrap()
-                .to_string()
-        }
-    };
-
-    let character = Character::new(name, role, gender);
-
-    if let Ok(true) = Confirm::new(format!("Does this info look correct: {character}").as_str())
-        .with_default(true)
-        .with_help_message("Will save if correct")
-        .prompt()
-    {
-        let character = match show_collection.add_character(show.as_str(), character) {
-            Ok(character) => character,
-            Err(e) => return eprintln!("{e}"),
-        };
-        let character_string = character.to_string();
-        match show_collection.save() {
-            Ok(_) => println!("Added new character: {character_string}"),
-            Err(e) => eprintln!("{e}"),
-        }
-    }
-}
-
-fn add_show_controller(name: Option<String>, release_year: Option<i16>) {
-    let validated_name: String;
-    let validated_release_year: i16;
-    let mut show_collection = match ShowCollection::load() {
-        Ok(show_collection) => show_collection,
-        Err(e) => return eprintln!("Unable to load shows: {e}"),
-    };
-    if let Some(name) = name {
-        validated_name = name;
-    } else {
-        validated_name = Text::new("Show's title:")
-            .with_suggester(&|input: &str| show_suggestor(&show_collection, input))
-            .prompt()
-            .unwrap();
-    }
-    if let Some(release_year) = release_year {
-        validated_release_year = release_year;
-    } else {
-        validated_release_year = CustomType::new("Show's release year:")
-            .with_error_message("Please enter a valid year")
-            .prompt()
-            .unwrap();
-    }
-    let show = Show::new(validated_name, validated_release_year);
-    if let Ok(true) = Confirm::new(format!("Does this info look correct: {show}").as_str())
-        .with_default(true)
-        .with_help_message("Will save if correct")
-        .prompt()
-    {
-        show_collection.add(show);
-
-        match show_collection.save() {
-            Ok(_) => println!("Saved show"),
-            Err(e) => return eprintln!("Unable to save show collection: {e}"),
-        }
-    }
-}
-
-fn show_suggestor(
-    show_collection: &ShowCollection,
-    input: &str,
-) -> Result<Vec<String>, CustomUserError> {
-    let shows: Vec<&str> = show_collection.get_show_names();
-    let input = input.to_lowercase();
-
-    Ok(shows
-        .iter()
-        .filter(|p| p.to_lowercase().contains(&input))
-        .take(5)
-        .map(|p| String::from(*p))
-        .collect())
 }
