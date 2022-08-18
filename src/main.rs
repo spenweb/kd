@@ -9,6 +9,7 @@ pub mod controllers;
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
+#[clap(arg_required_else_help(true))]
 struct Cli {
     #[clap(subcommand)]
     command: Option<Commands>,
@@ -85,6 +86,25 @@ enum CharacterCommands {
         #[clap(short, long, required(false))]
         gender: Option<String>,
     },
+
+    /// Update character
+    Update {
+        /// Old name of character
+        #[clap(short, long, required(false))]
+        old_name: Option<String>,
+
+        /// New name of character
+        #[clap(short, long, required(false))]
+        new_name: Option<String>,
+
+        /// Role of character
+        #[clap(short, long, required(false))]
+        role: Option<String>,
+
+        /// Gender of character
+        #[clap(short, long, required(false))]
+        gender: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -149,6 +169,9 @@ fn main() {
         Some(Commands::Character { command }) => match command {
             Some(CharacterCommands::Add { name, role, gender }) => {
                 controllers::character::add_character_controller(name, role, gender);
+            }
+            Some(CharacterCommands::Update { old_name, new_name, role, gender }) => {
+                controllers::character::update_character_controller(old_name, new_name, role, gender);
             }
             None => {}
         },

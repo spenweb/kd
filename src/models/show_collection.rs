@@ -61,4 +61,23 @@ impl ShowCollection {
         }
         Err("Show not found")
     }
+
+    pub fn update_character(
+        &mut self,
+        show_name: &str,
+        old_name: &str,
+        character: Character,
+    ) -> Result<&Character, &str> {
+        // Find show with name
+        for (_key, show) in self.shows.iter_mut() {
+            if show.get_name() == show_name {
+                return show.update_character(old_name, character);
+            }
+        }
+        Err("Show not found")
+    }
+
+    pub fn get_show_by_name(&self, name: &str) -> Option<&Show> {
+        self.shows.values().find(|&show| show.get_name() == name)
+    }
 }

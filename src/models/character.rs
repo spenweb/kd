@@ -7,8 +7,8 @@ use serde::{Serialize, Deserialize};
 #[derive(Serialize, Deserialize)]
 pub struct Character {
     pub name: String,
-    role: String,
-    gender: String
+    pub role: String,
+    pub gender: String
 }
 
 impl Character {
