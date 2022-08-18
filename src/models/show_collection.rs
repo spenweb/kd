@@ -80,4 +80,17 @@ impl ShowCollection {
     pub fn get_show_by_name(&self, name: &str) -> Option<&Show> {
         self.shows.values().find(|&show| show.get_name() == name)
     }
+
+    // TODO: Consider not passing a new show object but instead just passing new name and release year
+    pub fn update(&mut self, old_name: &str, show: Show) -> Result<&Show, &str> {
+        let old_show = match self.shows.values().find(|&old_show| old_show.name == old_name ) {
+            Some(old_show) => old_show,
+            None => return Err("Unable to find show with old name")
+        };
+        let id = String::from(old_show.get_id());
+        let old_show = self.shows.get_mut(&id).unwrap();
+        old_show.name = show.name;
+        old_show.release_year = show.release_year;
+        Ok(old_show)
+    }
 }

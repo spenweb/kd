@@ -2,7 +2,7 @@
 //!
 //! kd helps easily document Korean Dramas making watching Korean Dramas more fun!
 use clap::{Parser, Subcommand};
-use kd::{models::actor::Actor, config, korean::utils};
+use kd::{config, korean::utils, models::actor::Actor};
 use std::process;
 
 pub mod controllers;
@@ -62,12 +62,27 @@ enum ShowCommands {
         release_year: Option<i16>,
     },
 
+    /// Updae show
+    Update {
+        /// Old name of show
+        #[clap(short, long, required(false))]
+        old_name: Option<String>,
+
+        /// New name of show
+        #[clap(short, long, required(false))]
+        new_name: Option<String>,
+
+        /// Release year of show
+        #[clap(short, long, required(false))]
+        release_year: Option<i16>,
+    },
+
     /// Show info on show
     Info {
         /// Name of show
         #[clap(short, long, required(false))]
         name: Option<String>,
-    }
+    },
 }
 
 #[derive(Subcommand)]
@@ -163,15 +178,27 @@ fn main() {
             Some(ShowCommands::Add { name, release_year }) => {
                 controllers::show::add_show_controller(name, release_year)
             }
-            Some(ShowCommands::Info {name}) => controllers::show::display_more_info(name),
+            Some(ShowCommands::Update {
+                old_name,
+                new_name,
+                release_year,
+            }) => controllers::show::update_show_controller(old_name, new_name, release_year),
+            Some(ShowCommands::Info { name }) => controllers::show::display_more_info(name),
             None => {}
         },
         Some(Commands::Character { command }) => match command {
             Some(CharacterCommands::Add { name, role, gender }) => {
                 controllers::character::add_character_controller(name, role, gender);
             }
-            Some(CharacterCommands::Update { old_name, new_name, role, gender }) => {
-                controllers::character::update_character_controller(old_name, new_name, role, gender);
+            Some(CharacterCommands::Update {
+                old_name,
+                new_name,
+                role,
+                gender,
+            }) => {
+                controllers::character::update_character_controller(
+                    old_name, new_name, role, gender,
+                );
             }
             None => {}
         },
