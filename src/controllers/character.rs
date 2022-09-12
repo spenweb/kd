@@ -1,4 +1,4 @@
-use inquire::{Confirm, Text, CustomUserError};
+use inquire::{Confirm, CustomUserError, Text};
 use kd::models::{character::Character, show_collection::ShowCollection};
 
 use super::show_suggestor;

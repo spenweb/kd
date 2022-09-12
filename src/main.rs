@@ -120,6 +120,25 @@ enum CharacterCommands {
         #[clap(short, long, required(false))]
         gender: Option<String>,
     },
+
+    /// Set relationship
+    Rel {
+        /// Show name
+        #[clap(long, required(false))]
+        show_name: Option<String>,
+
+        /// Source character, the character that calls the relationship
+        #[clap(short, long, required(false))]
+        source_name: Option<String>,
+
+        /// Target character, the character that receives the relationship
+        #[clap(short, long, required(false))]
+        target_name: Option<String>,
+
+        /// Relationship type
+        #[clap(short, long, required(false))]
+        relationship_name: Option<String>,
+    }
 }
 
 #[derive(Subcommand)]
@@ -199,7 +218,9 @@ fn main() {
                 controllers::character::update_character_controller(
                     old_name, new_name, role, gender,
                 );
-            }
+            },
+            Some(CharacterCommands::Rel { show_name, source_name, target_name, relationship_name }) =>
+                controllers::show::set_relationship_controller(show_name, source_name, target_name, relationship_name),
             None => {}
         },
         Some(Commands::Actor { command }) => match command {
